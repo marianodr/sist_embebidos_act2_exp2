@@ -49,7 +49,7 @@ volatile int FlagP3 = 1;						    // FlagP3 = 1 -> Configuracion T1V1
 volatile int TIME = 0;			                    // Variable contador para el Timer 2
 volatile int T=10;                                  // Lectura del potenciometro RV1 (Tiempo)
 volatile int V=45;                                  // Lectura del potenciometro RV2 (Velocidad)
-volatile int motor_on = 0;                          // estado del motor
+volatile int motorOn = 0;               // estado del motor (ver si es necesario)
 int T1=10;                                          // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
 int T2=10;                                          // Tiempo etapa 2
@@ -66,6 +66,8 @@ void initADConverter();
 void config();
 void configTV(int op);
 void normal();
+void turnOnPWM();
+void turnOffPWM();
 void lcd();
 
 // Programa
@@ -171,24 +173,21 @@ void initTimer2(){
 	TIMSK2 = (1 << OCIE2A);                   // 0x02; Habilita interrupcion por igualacion.
 	OCR2A = 155;				              // Carga el valor de TOPE (155).
 
-	TIFR0 = 0x00;                             // Borra flags de interrupciones del Timer 2.
+	TIFR2 = 0x00;                             // Borra flags de interrupciones del Timer 2.
 }
 
 // Inicializacion del Timer0 como Fast PWM
 void initTimer0(){
 	// Configura como FastPWM con TOP OCR0A
 	TCCR0A |= ((1 << WGM01) | (1 << WGM00));
-	TCCR0A |= (1 << WGM02);
+	TCCR0B |= (1 << WGM02);
 
 	// Modo PWM no invertido (VERIFICAR)
 	TCCR0A |= (1 << COM0B1);                  // (El pin OC0B se borra cuando TCNT0 iguala a OCR0A y se settea cuando iguala a BOTTOM)
 
-	// Seleccion de la señal del reloj (N=64)
-	TCCR0B |= ((1 << CS01) | (1 << CS00));
+	OCR0A = 125;                              // Seleccion de tope para frecuencia de 2kHz
 
-	OCR0A = TOP;                              // Para frecuencia de 2kHz
-
-	// USAR TIMSK0 ACA???
+	TIMSK0 |= (OCIE0A);                       // Habilita interrupcion por comparacion con OCR0A
 	TIFR0 = 0x00;                             // Borra flags de interrupciones del Timer 0.
 }
 
@@ -204,19 +203,20 @@ void initADConverter(){
 	// Modo Free Running, ACME=0 y MUX5=0
 	ADCSRB = 0x00;
 
-	// Habilita auto triggering (ADATE = 1), interrupcion por conversion (ADIE = 1) y prescaler en 128
-	ADCSRA |= ((1 << ADATE) | (1 << ADIE) | (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2));
+	// Habilita interrupcion por conversion (ADIE = 1) y prescaler en 128
+	ADCSRA |= ((1 << ADIE) | (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2));
+
+	// Habilita ADC (ADEN = 1), i
+	ADCSRA |= (1 << ADEN);
 }
 
 // Modo Configuracion (seleccion de tiempo y velocidad)
 void config(){
-	// Inicia conversion
-	ADCSRA |= ((1 << ADEN) | (1 << ADSC));
+	turnOffPWM();                               // APAGAR PWM
 
-	configTV(FlagP3);
+	ADCSRA |= (1 << ADIE);                      // Habilita las interrupciones del ADC:
 
-    // Detiene conversion
-	ADCSRA &= ~(1 << ADEN);
+	configTV(FlagP3);                           // Configura T1/V1 o T2/V2
 }
 
 // Asignacion de T1/V1 o T2/V2
@@ -235,19 +235,45 @@ void configTV(int op){
 
 // Modo normal (funcionamiento del motor)
 void normal(){
-	// Modo de operacion normal
-	// Si FlagP1=1 (encender motor):
-	//      1) Genera señal PWM con ciclo util V1 durante T1
-	//      2) Genera señal PWM con ciclo util V2 durante T2 (actualiza OCR2B)
-	// Si FlagP1=0 apagar.
+	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC:
 
-	/*
-	TIME = 0;
+	if(FlagP1){                                 // ENCENDER PWM
+		if(motorOn){                            // Ya estaba encendido -> debe mantener el funcionamiento alternante
+												// Identifico etapa y configuro PWM (si es necesario)
+			if(TIME < T1 & OCR0A != V1){        // Etapa 1 y es necesario actualizar PWM
+				OCR0A = V1;                     // PWM con V1
+			}
+			else{                               // Etapa 2
+				if(OCR0A != V2){				// Es necesario actualizar PWM
+					OCR0A = V2;                 // PWM con V2
+				}
+			}
 
-	while(TIME < T1){
-
+			if(TIME > T1 + T2){                 // Si el clock supera a T1+T2, se reinicia
+				TIME = 0;
+			}
+		}
+		else{                                   // No estaba encendido -> Configurar PWM y encender
+			TIME = 0;                           // Reinicio el clock
+			OCR0A = V1;                         // PWM con V1
+			turnOnPWM();                        // Enciende PWM
+		}
 	}
-	*/
+	else{                                       // APAGAR PWM
+		turnOffPWM();
+	}
+}
+
+void turnOnPWM(){
+	// Seleccion de la señal del reloj (N=64)
+	TCCR0B |= ((1 << CS01) | (1 << CS00));
+	motorOn = 1;
+}
+
+// Detiene el temporizador Timer0 (Fast PWM)
+void turnOffPWM(){
+	TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));
+	motorOn = 0;
 }
 
 // Visualizar datos en display LCD
@@ -257,10 +283,12 @@ void lcd(){
 
 /*
 Problemas a solucionar:
-1) Conversion ADC de las tensiones en los potenciometros RV1 y RV2
-2) Generacion de las señales PWM (V1 durante T1, V2 durante T2)
-3) Mostrar datos en LCD
+    * Conversion ADC, dejarlo en free running y que la configuracion se encargue de asignar los valores de T y V
+    * Establecer logica de la funcion normal.
+    * Generacion de las señales PWM (V1 durante T1, V2 durante T2)
+    * Mostrar datos en LCD
 
-Controlar con qué unidades conviene guardar los tiempos
+! Controlar con qué unidades conviene guardar los tiempos
+! Cambiar la temporizacion del clock (10 ms genera un precision innecesaria)
 
 */
