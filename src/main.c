@@ -51,9 +51,9 @@ volatile int RV1=0;                                 // Lectura del potenciometro
 volatile int RV2=0;                                 // Lectura del potenciometro RV2 (Velocidad)
 volatile int motorOn = 0;                           // Estado del motor
 volatile int dutyCycle;                             // Ciclo util de la senal PWM
-int T1=10;                                          // Tiempo etapa 1
+int T1=1000;                                        // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
-int T2=10;                                          // Tiempo etapa 2
+int T2=1000;                                        // Tiempo etapa 2
 int V2=40;                                          // Velocidad etapa 2
 
 // Declararacion de funciones
@@ -290,10 +290,6 @@ void lcd(){
 
 /*
 Problemas a solucionar:
-    * Generacion de las señales PWM (V1 durante T1, V2 durante T2)
     * Mostrar datos en LCD
-
-! Controlar con qué unidades conviene guardar los tiempos
-! Cambiar la temporizacion del clock (10 ms genera un precision innecesaria)
-
+	* Cambiar la temporizacion del clock (10 ms genera un precision innecesaria)
 */
