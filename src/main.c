@@ -25,7 +25,7 @@
 
 // Macros de usuario
 // -------------------------------------------------------------------
-#define TOP 125         // Con N=64 --> T = 1/2k en la senal PWM
+#define T_PWM 125                               // Con N=64 --> T = 1/2k en la senal PWM
 #define	sbi(p,b)	p |= _BV(b)					//	sbi(p,b) setea el bit b de p.
 #define	cbi(p,b)	p &= ~(_BV(b))				//	cbi(p,b) borra el bit b de p.
 #define	tbi(p,b)	p ^= _BV(b)					//	tbi(p,b) togglea el bit b de p.
@@ -43,13 +43,14 @@
 
 // Variables globales
 // -------------------------------------------------------------------
-volatile int FlagP1 = 0; 							// FlagP1 = 0 -> Motor apagado
-volatile int FlagP2 = 1; 							// FlagP2 = 1 -> Modo configuracion
+volatile int FlagP1 = 0; 							// FlagP1 = 0 -> Apagar Motor
+volatile int FlagP2 = 1; 							// FlagP2 = 1 -> Modo Configuracion
 volatile int FlagP3 = 1;						    // FlagP3 = 1 -> Configuracion T1V1
-volatile int TIME = 0;			                    // Variable contador para el Timer 2
-volatile int T=10;                                  // Lectura del potenciometro RV1 (Tiempo)
-volatile int V=45;                                  // Lectura del potenciometro RV2 (Velocidad)
-volatile int motorOn = 0;               // estado del motor (ver si es necesario)
+volatile int CLK = 0;			                    // Variable contador para el Timer 2
+volatile int RV1=0;                                 // Lectura del potenciometro RV1 (Tiempo)
+volatile int RV2=0;                                 // Lectura del potenciometro RV2 (Velocidad)
+volatile int motorOn = 0;                           // Estado del motor
+volatile int dutyCycle;                             // Ciclo util de la senal PWM
 int T1=10;                                          // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
 int T2=10;                                          // Tiempo etapa 2
@@ -80,7 +81,7 @@ int main(void){
 	initTimer2();
 	initTimer0();
 	initADConverter();
-	Lcd4_Init();				// Inicializa el LCD (siempre debe estar antes de escribir el LCD).
+	Lcd4_Init();				// Inicializa el LCD (siempre debe estar antes de escribir el LCD)
 	Lcd4_Clear();				// Borra el display.
 	sei();						// Habilita interrupciones.
 
@@ -101,15 +102,15 @@ int main(void){
 // ----------------------------------------------------------------------------------------
 ISR(INT0_vect){
 	_delay_ms(BOUNCE_DELAY);
-	if (is_low(PIND,P2)){        // Comprueba si P2 sigue en BAJO
-		tbi(FlagP2,0);           // Establecer la bandera para indicar la interrupcion
+	if (is_low(PIND,P2)){              // Comprueba si P2 sigue en BAJO
+		tbi(FlagP2,0);                 // Establecer la bandera para indicar la interrupcion
 	}
 }
 
 ISR(INT1_vect){
 	_delay_ms(BOUNCE_DELAY);
-	if (is_low(PIND,P1)){        // Comprueba si P1 sigue en BAJO
-		tbi(FlagP1,0);           // Establecer la bandera para indicar la interrupcion
+	if (is_low(PIND,P1)){              // Comprueba si P1 sigue en BAJO
+		tbi(FlagP1,0);                 // Establecer la bandera para indicar la interrupcion
 	}
 }
 
@@ -121,16 +122,21 @@ ISR(INT2_vect){
 }
 
 ISR(TIMER2_COMPA_vect){
-    TIME++;					       // Incrementa contador cada 10ms
+    CLK++;					       // Incrementa contador cada 10ms
+}
+
+ISR(TIMER0_COMPA_vect){
+	// Actualiza Ciclo util
+	OCR0B = dutyCycle;
 }
 
 ISR(ADC_vect){
 	// Guarda la conversion dependiendo el canal
 	if(!(ADMUX & (1 << MUX0))){
-        T = ADC;                   // ADC0
+        RV1 = ADC;                   // ADC0
     }
 	else{
-        V = ADC;                   // ADC1
+        RV2 = ADC;                   // ADC1
     }
 
 	// Togglea el canal
@@ -182,13 +188,13 @@ void initTimer0(){
 	TCCR0A |= ((1 << WGM01) | (1 << WGM00));
 	TCCR0B |= (1 << WGM02);
 
-	// Modo PWM no invertido (VERIFICAR)
-	TCCR0A |= (1 << COM0B1);                  // (El pin OC0B se borra cuando TCNT0 iguala a OCR0A y se settea cuando iguala a BOTTOM)
+	// Modo PWM no invertido
+	TCCR0A |= (1 << COM0B1);                    // (El pin OC0B se borra cuando TCNT0 iguala a OCR0A y se setea cuando iguala a BOTTOM)
 
-	OCR0A = 125;                              // Seleccion de tope para frecuencia de 2kHz
+	OCR0A = T_PWM;                              // Seleccion de tope para frecuencia de 2kHz
 
-	TIMSK0 |= (OCIE0A);                       // Habilita interrupcion por comparacion con OCR0A
-	TIFR0 = 0x00;                             // Borra flags de interrupciones del Timer 0.
+	TIMSK0 |= (1 << OCIE0A);                    // Habilita interrupcion por comparacion con OCR0A
+	TIFR0 = 0x00;                               // Borra flags de interrupciones del Timer 0.
 }
 
 // Configuracion del conversor Analogico-Digital
@@ -214,48 +220,48 @@ void initADConverter(){
 void config(){
 	turnOffPWM();                               // APAGAR PWM
 
-	ADCSRA |= (1 << ADIE);                      // Habilita las interrupciones del ADC:
+	ADCSRA |= (1 << ADIE);                      // Habilita las interrupciones del ADC
 
 	configTV(FlagP3);                           // Configura T1/V1 o T2/V2
 }
 
 // Asignacion de T1/V1 o T2/V2
 void configTV(int op){
-	// Si op = 1 --> actualiza T1 y V1
-	// Si op = 0 --> actualiza T2 y V2
+	// Si op = 1 --> Actualiza T1 y V1
+	// Si op = 0 --> Actualiza T2 y V2
 	if(op){
-		T1 = 1000 + (T * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con TIME)
-		V1 = 40 + (V * 55/1023);          // De 40% a 95%
+		T1 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
+		V1 = 40 + (RV2 * 55/1023);          // De 40% a 95%
 	}
 	else{
-		T2 = 1000 + (T * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con TIME)
-		V2 = 40 + (V * 55/1023);          // De 40% a 95%
+		T2 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
+		V2 = 40 + (RV2 * 55/1023);          // De 40% a 95%
 	}
 }
 
 // Modo normal (funcionamiento del motor)
 void normal(){
-	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC:
+	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC
 
 	if(FlagP1){                                 // ENCENDER PWM
 		if(motorOn){                            // Ya estaba encendido -> debe mantener el funcionamiento alternante
-												// Identifico etapa y configuro PWM (si es necesario)
-			if(TIME < T1 & OCR0A != V1){        // Etapa 1 y es necesario actualizar PWM
-				OCR0A = V1;                     // PWM con V1
+												// Identifico etapa y actualizo Ciclo Util (si es necesario)
+			if(CLK < T1 & dutyCycle != V1){     // Etapa 1 y es necesario actualizar Ciclo Util
+				dutyCycle = V1;                 // Actualiza Ciclo Util con V1
 			}
 			else{                               // Etapa 2
-				if(OCR0A != V2){				// Es necesario actualizar PWM
-					OCR0A = V2;                 // PWM con V2
+				if(dutyCycle != V2){			// Es necesario actualizar Ciclo Util
+					dutyCycle = V2;             // Actualiza Ciclo Util con V2
 				}
 			}
 
-			if(TIME > T1 + T2){                 // Si el clock supera a T1+T2, se reinicia
-				TIME = 0;
+			if(CLK > T1 + T2){                  // Si el clock supera a T1+T2, se reinicia
+				CLK = 0;
 			}
 		}
-		else{                                   // No estaba encendido -> Configurar PWM y encender
-			TIME = 0;                           // Reinicio el clock
-			OCR0A = V1;                         // PWM con V1
+		else{                                   // No estaba encendido -> Asignar Ciclo Util y Encender
+			CLK = 0;                            // Reinicio el clock
+			dutyCycle = V1;                     // Asigna Ciclo Util con V1
 			turnOnPWM();                        // Enciende PWM
 		}
 	}
@@ -264,6 +270,7 @@ void normal(){
 	}
 }
 
+// Enciende el temporizador Timer0 (Fast PWM)
 void turnOnPWM(){
 	// Seleccion de la señal del reloj (N=64)
 	TCCR0B |= ((1 << CS01) | (1 << CS00));
@@ -283,8 +290,6 @@ void lcd(){
 
 /*
 Problemas a solucionar:
-    * Conversion ADC, dejarlo en free running y que la configuracion se encargue de asignar los valores de T y V
-    * Establecer logica de la funcion normal.
     * Generacion de las señales PWM (V1 durante T1, V2 durante T2)
     * Mostrar datos en LCD
 
