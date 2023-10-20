@@ -15,13 +15,13 @@
 #define P3      PD2           // Selecciona configuracion de T1_V1 o T2_V2
 
 // Salidas:
-// Pines usados por la libreria lcd_2560.h:
-#define RS	PA0			// Pin RS = PA0 (22) (Reset).
-#define EN	PA1			// Pin EN = PA1 (23) (Enable).
-#define D4	PA2			// Pin D4 = PA2 (24) (Data D4).
-#define D5	PA3			// Pin D5 = PA3 (25) (Data D5).
-#define D6	PA4			// Pin D6 = PA4 (26) (Data D6).
-#define D7	PA5			// Pin D7 = PA5 (27) (Data D7).
+// Pines usados por la librer�a lcd_2560.h:
+#define RS	eS_PORTA0			// Pin RS = PA0 (22) (Reset).
+#define EN	eS_PORTA1			// Pin EN = PA1 (23) (Enable).
+#define D4	eS_PORTA2			// Pin D4 = PA2 (24) (Data D4).
+#define D5	eS_PORTA3			// Pin D5 = PA3 (25) (Data D5).
+#define D6	eS_PORTA4			// Pin D6 = PA4 (26) (Data D6).
+#define D7	eS_PORTA5			// Pin D7 = PA5 (27) (Data D7).
 
 // Macros de usuario
 // -------------------------------------------------------------------
@@ -286,6 +286,13 @@ void turnOffPWM(){
 // Visualizar datos en display LCD
 void lcd(){
 	// codigo para mostrar en LCD
+	// Declarar variable global "interface" de tipo entero
+	// Interface toma 3 valores durante la ejecucion del main
+	//     * interface = 0 --> Modo normal
+	//     * interface = 1 --> Modo configuracion 1
+	//     * interface = 2 --> Modo configuracion 2
+	// Con un switch, se seleccionará qué mostrar en el LCD
+	// La implementacion surge de la prueba del archivo prueba_LCD
 }
 
 /*
