@@ -55,6 +55,9 @@ int T1=1000;                                        // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
 int T2=1000;                                        // Tiempo etapa 2
 int V2=40;                                          // Velocidad etapa 2
+char buffer[16];
+int interface;
+int update;
 
 // Declararacion de funciones
 // -------------------------------------------------------------------
@@ -70,6 +73,9 @@ void normal();
 void turnOnPWM();
 void turnOffPWM();
 void lcd();
+void interfaceNormal();
+void interfaceConfig1();
+void interfaceConfig2();
 
 // Programa
 // -------------------------------------------------------------------
@@ -232,10 +238,20 @@ void configTV(int op){
 	if(op){
 		T1 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
 		V1 = 40 + (RV2 * 55/1023);          // De 40% a 95%
+
+		if(interface!=1){ // VERIFICAR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			update=1;
+			interface=1;
+		}
 	}
 	else{
 		T2 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
 		V2 = 40 + (RV2 * 55/1023);          // De 40% a 95%
+
+		if(interface!=2){   // VERIFICAR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			update=1;
+			interface=2;
+		}
 	}
 }
 
@@ -268,6 +284,11 @@ void normal(){
 	else{                                       // APAGAR PWM
 		turnOffPWM();
 	}
+
+	if(interface!=0){
+		update=1;
+		interface=0;
+	}
 }
 
 // Enciende el temporizador Timer0 (Fast PWM)
@@ -292,11 +313,65 @@ void lcd(){
 	//     * interface = 1 --> Modo configuracion 1
 	//     * interface = 2 --> Modo configuracion 2
 	// Con un switch, se seleccionará qué mostrar en el LCD
-	// La implementacion surge de la prueba del archivo prueba_LCD
+
+	if(update){
+		Lcd4_Clear();
+
+		switch(interface){
+			case 0:
+				interfaceNormal();
+				break;
+
+			case 1:
+				interfaceConfig1();
+				break;
+
+			case 2:
+				interfaceConfig2();
+				break;
+
+			default:
+				break;
+		}
+		update=0;
+	}
+}
+
+// Mostrar interface Normal en LCD
+void interfaceNormal(){
+	sprintf(buffer, "T1: %.0fs V1: %.0f%%", T1, V1);
+	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
+	Lcd4_Write_String(buffer);									// Escribe string
+
+	sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
+	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
+	Lcd4_Write_String(buffer);
+}
+
+// Mostrar interface configuracion etapa 1
+void interfaceConfig1(){
+	sprintf(buffer, "CONFIG. ETAPA 1:");
+	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
+	Lcd4_Write_String(buffer);									// Escribe string
+
+	sprintf(buffer, "T1: %.0fs V1: %.0f%%", T1, V1);
+	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
+	Lcd4_Write_String(buffer);
+}
+
+// Mostrar interface configuracion etapa 2
+void interfaceConfig2(){
+	sprintf(buffer, "CONFIG. ETAPA 2:");
+	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
+	Lcd4_Write_String(buffer);									// Escribe string
+
+	sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
+	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
+	Lcd4_Write_String(buffer);
 }
 
 /*
 Problemas a solucionar:
-    * Mostrar datos en LCD
+    * Implementar de manera más elegante las interfaces
 	* Cambiar la temporizacion del clock (10 ms genera un precision innecesaria)
 */
