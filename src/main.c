@@ -57,9 +57,9 @@ int T1=1000;                                        // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
 int T2=1000;                                        // Tiempo etapa 2
 int V2=40;                                          // Velocidad etapa 2
-char buffer[16];
-int interface;
-int update;
+char buffer[16];                                    // Para cargar en lcd
+int interface;                                      // 0 (normal), 1 (config1), 2 (config2)
+int update;                                         // indica si es necesario actualizar el lcd
 
 // Declararacion de funciones
 // -------------------------------------------------------------------
@@ -254,7 +254,7 @@ void configTV(int op){
 		T1 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
 		V1 = 40 + (RV2 * 55/1023);          // De 40% a 95%
 
-		if(interface!=1){ // VERIFICAR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		if(interface!=1){
 			update=1;
 			interface=1;
 		}
@@ -263,7 +263,7 @@ void configTV(int op){
 		T2 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
 		V2 = 40 + (RV2 * 55/1023);          // De 40% a 95%
 
-		if(interface!=2){   // VERIFICAR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		if(interface!=2){
 			update=1;
 			interface=2;
 		}
@@ -321,9 +321,7 @@ void turnOffPWM(){
 
 // Visualizar datos en display LCD
 void lcd(){
-	// codigo para mostrar en LCD
-	// Declarar variable global "interface" de tipo entero
-	// Interface toma 3 valores durante la ejecucion del main
+	// interface toma 3 valores durante la ejecucion del main
 	//     * interface = 0 --> Modo normal
 	//     * interface = 1 --> Modo configuracion 1
 	//     * interface = 2 --> Modo configuracion 2
