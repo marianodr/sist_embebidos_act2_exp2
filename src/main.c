@@ -156,7 +156,7 @@ ISR(ADC_vect){
 // ----------------------------------------------------------------------------------------
 // Configuracion e Inicializacion de puertos
 void initPorts(){
-	DDRA = 0xFF;       // PA0, PA1, PA2, PA3, PA4, PA5 como salida
+	DDRA = 0xFF;       // Puerto A como salida
 	PORTA = 0x00;      // Inicializa el puerto A
 
 	DDRF = 0x00;	   // Puerto F todo como entrada (para conversor AD)
