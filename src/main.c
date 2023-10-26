@@ -90,7 +90,7 @@ int main(void){
 	initTimer2();
 	initTimer0();
 	initADConverter();
-	Lcd4_Init();				// Inicializa el LCD (siempre debe estar antes de escribir el LCD)
+	// Lcd4_Init();				// Inicializa el LCD (siempre debe estar antes de escribir el LCD)
 	Lcd4_Clear();				// Borra el display.
 	sei();						// Habilita interrupciones.
 
@@ -104,6 +104,7 @@ int main(void){
 		}
 
 		lcd();
+		ledIndicateP1();
 	}
 }
 
@@ -181,7 +182,7 @@ void boot(){
 	_delay_ms(3000);
 
 	Lcd4_Clear();                                               // Limpia el display
-	PORTA &= ~(1 << LED_R);                                     // Apaga los LEDs
+	PORTA &= ~((1 << LED_G) | (1 << LED_R));                    // Apaga los LEDs
 }
 
 // Inicializacion de interrupciones externas
@@ -383,13 +384,13 @@ void interfaceConfig2(){
 	Lcd4_Write_String(buffer);
 }
 
-// Permite indicar la seleccion del pusladro P1 (encender / apagar motor)
+// Independientemente del modo, indica la seleccion del pulsador P1 (encender / apagar motor)
 void ledIndicateP1(){
 	if(FlagP1){
 		PORTA |= (1 << LED_G);         // Enciende LED verde
 		PORTA &= ~(1 << LED_R);        // Apaga LED rojo
 	}
-	else {
+	else{
 		PORTA |= (1 << LED_R);         // Enciende LED rojo
 		PORTA &= ~(1 << LED_G);        // Apaga LED verde
 	}
