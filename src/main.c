@@ -22,6 +22,8 @@
 #define D5	eS_PORTA3			// Pin D5 = PA3 (25) (Data D5).
 #define D6	eS_PORTA4			// Pin D6 = PA4 (26) (Data D6).
 #define D7	eS_PORTA5			// Pin D7 = PA5 (27) (Data D7).
+#define LED_G     PA6           // Se conecta al LED verde para indicar FlagP1 = 1 (encendido del motor en modo normal)
+#define LED_R     PA7           // Se conecta al LED rojo para indicar FlagP1 = 0 (apagado del motor en modo normal)
 
 // Macros de usuario
 // -------------------------------------------------------------------
@@ -76,6 +78,7 @@ void lcd();
 void interfaceNormal();
 void interfaceConfig1();
 void interfaceConfig2();
+void ledIndicateP1();
 
 // Programa
 // -------------------------------------------------------------------
@@ -153,7 +156,7 @@ ISR(ADC_vect){
 // ----------------------------------------------------------------------------------------
 // Configuracion e Inicializacion de puertos
 void initPorts(){
-	DDRA = 0x3F;       // PA0, PA1, PA2, PA3, PA4, PA5 como salida
+	DDRA = 0xFF;       // PA0, PA1, PA2, PA3, PA4, PA5 como salida
 	PORTA = 0x00;      // Inicializa el puerto A
 
 	DDRF = 0x00;	   // Puerto F todo como entrada (para conversor AD)
@@ -166,8 +169,20 @@ void initPorts(){
 
 // Secuencia de arranque
 void boot(){
-	// Secuencia de Arranque
-	}
+	Lcd4_Init();
+	Lcd4_Clear();
+
+	sprintf(buffer, "INICIANDO...");
+	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
+	Lcd4_Write_String(buffer);									// Escribe string
+
+	PORTA |= (1 << LED_G) | (1 << LED_R);                       // Enciende los LEDs
+
+	_delay_ms(3000);
+
+	Lcd4_Clear();                                               // Limpia el display
+	PORTA &= ~(1 << LED_R);                                     // Apaga los LEDs
+}
 
 // Inicializacion de interrupciones externas
 void initExternalInterrupts(){
@@ -206,7 +221,7 @@ void initTimer0(){
 // Configuracion del conversor Analogico-Digital
 void initADConverter(){
 	// Desconecta la parte digital del pin ADC0/PF0 y ADC1/PF1.
-	DIDR0 |= ((1 << ADC0D) | (1 << ADC1D))
+	DIDR0 |= ((1 << ADC0D) | (1 << ADC1D));
 
 	// Config. la ref. de tension tomada del pin AVCC (placa Arduino AVCC = Vcc = 5V).
 	// Conversion AD de 10 bits (ADLAR = 0) y con el Multiplexor selecciona canal 0 (ADC0/PF0).
@@ -368,6 +383,18 @@ void interfaceConfig2(){
 	sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
+}
+
+// Permite indicar la seleccion del pusladro P1 (encender / apagar motor)
+void ledIndicateP1(){
+	if(FlagP1){
+		PORTA |= (1 << LED_G);         // Enciende LED verde
+		PORTA &= ~(1 << LED_R);        // Apaga LED rojo
+	}
+	else {
+		PORTA |= (1 << LED_R);         // Enciende LED rojo
+		PORTA &= ~(1 << LED_G);        // Apaga LED verde
+	}
 }
 
 /*
