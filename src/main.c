@@ -49,8 +49,8 @@ volatile int FlagP1 = 0; 							// FlagP1 = 0 -> Apagar Motor
 volatile int FlagP2 = 1; 							// FlagP2 = 1 -> Modo Configuracion
 volatile int FlagP3 = 1;						    // FlagP3 = 1 -> Configuracion T1V1
 volatile int CLK = 0;			                    // Variable contador para el Timer 2
-volatile int RV1=0;                                 // Lectura del potenciometro RV1 (Tiempo)
-volatile int RV2=0;                                 // Lectura del potenciometro RV2 (Velocidad)
+volatile int RV1=0;                                 // Lectura del potenciometro RV1 (Tiempo)       (0 a 1023)
+volatile int RV2=0;                                 // Lectura del potenciometro RV2 (Velocidad)    (0 a 1023)
 volatile int motorOn = 0;                           // Estado del motor
 volatile int dutyCycle;                             // Ciclo util de la senal PWM
 int T1=1000;                                        // Tiempo etapa 1
@@ -252,8 +252,8 @@ void configTV(int op){
 	// Si op = 1 --> Actualiza T1 y V1
 	// Si op = 0 --> Actualiza T2 y V2
 	if(op){
-		T1 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
-		V1 = 40 + (RV2 * 55/1023);          // De 40% a 95%
+		T1 = (int)(1000 + (RV1 * 1000/1023));      // De 10" a 20" (1000 a 2000, para operar con CLK)
+		V1 = (int)(40 + (RV2 * 55/1023));          // De 40% a 95%
 
 		if(interface!=1){
 			update=1;
@@ -261,8 +261,8 @@ void configTV(int op){
 		}
 	}
 	else{
-		T2 = 1000 + (RV1 * 1000/1023);      // De 10" a 20" (1000 a 2000, para operar con CLK)
-		V2 = 40 + (RV2 * 55/1023);          // De 40% a 95%
+		T2 = (int)(1000 + (RV1 * 1000/1023));      // De 10" a 20" (1000 a 2000, para operar con CLK)
+		V2 = (int)(40 + (RV2 * 55/1023));          // De 40% a 95%
 
 		if(interface!=2){
 			update=1;
@@ -273,31 +273,31 @@ void configTV(int op){
 
 // Modo normal (funcionamiento del motor)
 void normal(){
-	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC
+	ADCSRA &= ~(1 << ADIE);                         // Deshabilita las interrupciones del ADC
 
-	if(FlagP1){                                 // ENCENDER PWM
-		if(motorOn){                            // Ya estaba encendido -> debe mantener el funcionamiento alternante
-												// Identifico etapa y actualizo Ciclo Util (si es necesario)
-			if(CLK < T1 & dutyCycle != V1){     // Etapa 1 y es necesario actualizar Ciclo Util
-				dutyCycle = V1;                 // Actualiza Ciclo Util con V1
+	if(FlagP1){                                     // ENCENDER PWM
+		if(motorOn){                                // Ya estaba encendido -> debe mantener el funcionamiento alternante
+												    // Identifico etapa y actualizo Ciclo Util (si es necesario)
+			if((CLK < T1) && (dutyCycle != V1)){    // Etapa 1 y es necesario actualizar Ciclo Util
+				dutyCycle = V1;                     // Actualiza Ciclo Util con V1
 			}
-			else{                               // Etapa 2
-				if(dutyCycle != V2){			// Es necesario actualizar Ciclo Util
-					dutyCycle = V2;             // Actualiza Ciclo Util con V2
+			else{                                   // Etapa 2
+				if(dutyCycle != V2){			    // Es necesario actualizar Ciclo Util
+					dutyCycle = V2;                 // Actualiza Ciclo Util con V2
 				}
 			}
 
-			if(CLK > T1 + T2){                  // Si el clock supera a T1+T2, se reinicia
+			if(CLK > (T1 + T2)){                      // Si el clock supera a T1+T2, se reinicia
 				CLK = 0;
 			}
 		}
-		else{                                   // No estaba encendido -> Asignar Ciclo Util y Encender
-			CLK = 0;                            // Reinicio el clock
-			dutyCycle = V1;                     // Asigna Ciclo Util con V1
-			turnOnPWM();                        // Enciende PWM
+		else{                                      // No estaba encendido -> Asignar Ciclo Util y Encender
+			CLK = 0;                               // Reinicio el clock
+			dutyCycle = V1;                        // Asigna Ciclo Util con V1
+			turnOnPWM();                           // Enciende PWM
 		}
 	}
-	else{                                       // APAGAR PWM
+	else{                                          // APAGAR PWM
 		turnOffPWM();
 	}
 
@@ -353,33 +353,35 @@ void lcd(){
 
 // Mostrar interface Normal en LCD
 void interfaceNormal(){
-	sprintf(buffer, "T1: %.0fs V1: %.0f%%", T1, V1);
+	// sprintf(buffer, "T1: %.0fs V1: %.0f%%", T1, V1);
+	sprintf(buffer, "T1: %is V1: %i%%", T1, V1);
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
+	//sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
+	sprintf(buffer, "T2: %is V2: %i%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
 }
 
 // Mostrar interface configuracion etapa 1
 void interfaceConfig1(){
-	sprintf(buffer, "CONFIG. ETAPA 1:");
+	sprintf(buffer, "CONFIG. ETAPA1:");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T1: %.0fs V1: %.0f%%", T1, V1);
+	sprintf(buffer, "T1: %is V1: %i%%", T1, V1);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
 }
 
 // Mostrar interface configuracion etapa 2
 void interfaceConfig2(){
-	sprintf(buffer, "CONFIG. ETAPA 2:");
+	sprintf(buffer, "CONFIG. ETAPA2:");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
+	sprintf(buffer, "T2: %is V2: %i%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
 }
