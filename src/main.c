@@ -207,6 +207,9 @@ void initTimer2(){
 
 // Inicializacion del Timer0 como Fast PWM
 void initTimer0(){
+	TCCR0A = 0x00;
+	TCCR0B = 0x00;
+
 	// Configura como FastPWM con TOP OCR0A
 	TCCR0A |= ((1 << WGM01) | (1 << WGM00));
 	TCCR0B |= (1 << WGM02);
