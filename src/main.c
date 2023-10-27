@@ -138,7 +138,7 @@ ISR(TIMER2_COMPA_vect){
 
 ISR(TIMER0_COMPA_vect){
 	// Actualiza Ciclo util
-	OCR0B = dutyCycle;
+	OCR0B = 100 - dutyCycle;
 }
 
 ISR(ADC_vect){
@@ -215,7 +215,8 @@ void initTimer0(){
 	TCCR0B |= (1 << WGM02);
 
 	// Modo PWM no invertido
-	TCCR0A |= (1 << COM0B1);                    // (El pin OC0B se borra cuando TCNT0 iguala a OCR0A y se setea cuando iguala a BOTTOM)
+	//TCCR0A |= (1 << COM0B1);                    // (El pin OC0B se borra cuando TCNT0 iguala a OCR0A y se setea cuando iguala a BOTTOM)
+	TCCR0A |= (1 << COM0B1) | (1 << COM0B0);
 
 	OCR0A = T_PWM;                              // Seleccion de tope para frecuencia de 2kHz
 
@@ -322,7 +323,7 @@ void turnOnPWM(){
 
 // Detiene el temporizador Timer0 (Fast PWM)
 void turnOffPWM(){
-	
+	// Prescaler = 0
 	TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));
 	motorOn = 0;
 }
