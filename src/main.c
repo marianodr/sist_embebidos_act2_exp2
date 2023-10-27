@@ -255,8 +255,8 @@ void configTV(int op){
 	// Si op = 1 --> Actualiza T1 y V1
 	// Si op = 0 --> Actualiza T2 y V2
 	if(op){
-		T1 = (int)(10 + (RV1 * 1000/1023));        // De 10" a 20"
-		V1 = (int)(40 + (RV2 * 55/1023));          // De 40% a 95%
+		T1 = (int)(10 + (RV1 * 10/1023));        // De 10" a 20"
+		V1 = (int)(40 + (RV2 * 55/1023));        // De 40% a 95%
 
 		if(interface!=1){
 			update=1;
@@ -264,8 +264,8 @@ void configTV(int op){
 		}
 	}
 	else{
-		T2 = (int)(10 + (RV1 * 1000/1023));        // De 10" a 20"
-		V2 = (int)(40 + (RV2 * 55/1023));          // De 40% a 95%
+		T2 = (int)(10 + (RV1 * 10/1023));        // De 10" a 20"
+		V2 = (int)(40 + (RV2 * 55/1023));        // De 40% a 95%
 
 		if(interface!=2){
 			update=1;
@@ -319,6 +319,7 @@ void turnOnPWM(){
 
 // Detiene el temporizador Timer0 (Fast PWM)
 void turnOffPWM(){
+	
 	TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));
 	motorOn = 0;
 }
