@@ -24,10 +24,11 @@
 #define D7	eS_PORTA5			// Pin D7 = PA5 (27) (Data D7).
 #define LED_G     PA6           // Se conecta al LED verde para indicar FlagP1 = 1 (encendido del motor en modo normal)
 #define LED_R     PA7           // Se conecta al LED rojo para indicar FlagP1 = 0 (apagado del motor en modo normal)
+#define PORT_PWM  PG5           // Puerto PWM
 
 // Macros de usuario
 // -------------------------------------------------------------------
-#define T_PWM 125                               // Con N=64 --> T = 1/2k en la senal PWM
+#define T_PWM 124                               // Con N=64 --> T = 1/2k en la senal PWM
 #define	sbi(p,b)	p |= _BV(b)					//	sbi(p,b) setea el bit b de p.
 #define	cbi(p,b)	p &= ~(_BV(b))				//	cbi(p,b) borra el bit b de p.
 #define	tbi(p,b)	p ^= _BV(b)					//	tbi(p,b) togglea el bit b de p.
@@ -49,13 +50,13 @@ volatile int FlagP1 = 0; 							// FlagP1 = 0 -> Apagar Motor
 volatile int FlagP2 = 1; 							// FlagP2 = 1 -> Modo Configuracion
 volatile int FlagP3 = 1;						    // FlagP3 = 1 -> Configuracion T1V1
 volatile int CLK = 0;			                    // Variable contador para el Timer 2
-volatile int RV1=0;                                 // Lectura del potenciometro RV1 (Tiempo)       (0 a 1023)
-volatile int RV2=0;                                 // Lectura del potenciometro RV2 (Velocidad)    (0 a 1023)
+volatile int RV1=512;                               // Lectura del potenciometro RV1 (Tiempo)       (0 a 1023)
+volatile int RV2=512;                               // Lectura del potenciometro RV2 (Velocidad)    (0 a 1023)
 volatile int motorOn = 0;                           // Estado del motor
 volatile int dutyCycle;                             // Ciclo util de la senal PWM
-int T1=1000;                                        // Tiempo etapa 1
+int T1=10;                                          // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
-int T2=1000;                                        // Tiempo etapa 2
+int T2=10;                                          // Tiempo etapa 2
 int V2=40;                                          // Velocidad etapa 2
 char buffer[16];                                    // Para cargar en lcd
 int interface;                                      // 0 (normal), 1 (config1), 2 (config2)
@@ -162,7 +163,7 @@ void initPorts(){
 
 	DDRF = 0x00;	   // Puerto F todo como entrada (para conversor AD)
 
-	DDRG = 0x20;       // Pin PG5 como salida para OC0B (senal PWM)
+	DDRG = (1 << PORT_PWM);       // Pin PG5 como salida para OC0B (senal PWM)
 
 	// Se configura a PD0, PD1 y PD2 como puertos de entrada con resistencia pull-up internas:
 	PORTD = (1 << P1) | (1 << P2) | (1 << P3);
@@ -215,6 +216,8 @@ void initTimer0(){
 
 	OCR0A = T_PWM;                              // Seleccion de tope para frecuencia de 2kHz
 
+	TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));   // Prescaler en 0
+
 	TIMSK0 |= (1 << OCIE0A);                    // Habilita interrupcion por comparacion con OCR0A
 	TIFR0 = 0x00;                               // Borra flags de interrupciones del Timer 0.
 }
@@ -252,7 +255,7 @@ void configTV(int op){
 	// Si op = 1 --> Actualiza T1 y V1
 	// Si op = 0 --> Actualiza T2 y V2
 	if(op){
-		T1 = (int)(1000 + (RV1 * 1000/1023));      // De 10" a 20" (1000 a 2000, para operar con CLK)
+		T1 = (int)(10 + (RV1 * 1000/1023));        // De 10" a 20"
 		V1 = (int)(40 + (RV2 * 55/1023));          // De 40% a 95%
 
 		if(interface!=1){
@@ -261,7 +264,7 @@ void configTV(int op){
 		}
 	}
 	else{
-		T2 = (int)(1000 + (RV1 * 1000/1023));      // De 10" a 20" (1000 a 2000, para operar con CLK)
+		T2 = (int)(10 + (RV1 * 1000/1023));        // De 10" a 20"
 		V2 = (int)(40 + (RV2 * 55/1023));          // De 40% a 95%
 
 		if(interface!=2){
@@ -278,7 +281,7 @@ void normal(){
 	if(FlagP1){                                     // ENCENDER PWM
 		if(motorOn){                                // Ya estaba encendido -> debe mantener el funcionamiento alternante
 												    // Identifico etapa y actualizo Ciclo Util (si es necesario)
-			if((CLK < T1) && (dutyCycle != V1)){    // Etapa 1 y es necesario actualizar Ciclo Util
+			if((CLK < 100*T1) && (dutyCycle != V1)){    // Etapa 1 y es necesario actualizar Ciclo Util
 				dutyCycle = V1;                     // Actualiza Ciclo Util con V1
 			}
 			else{                                   // Etapa 2
@@ -287,7 +290,7 @@ void normal(){
 				}
 			}
 
-			if(CLK > (T1 + T2)){                      // Si el clock supera a T1+T2, se reinicia
+			if(CLK > 100 * (T1 + T2)){             	// Si el clock supera a 100*(T1+T2), se reinicia
 				CLK = 0;
 			}
 		}
