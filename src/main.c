@@ -325,6 +325,7 @@ void turnOffPWM(){
 	TCCR0A &= ~((1 << COM0B1) | (1 << COM0B0));
 	// Prescaler = 0
 	TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));
+	TCNT0 = 0;
 	motorOn = 0;
 }
 
