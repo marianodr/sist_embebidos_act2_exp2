@@ -80,6 +80,7 @@ void interfaceNormal();
 void interfaceConfig1();
 void interfaceConfig2();
 void ledIndicateP1();
+int calDutyCycle(int V);
 
 // Programa
 // -------------------------------------------------------------------
@@ -138,7 +139,7 @@ ISR(TIMER2_COMPA_vect){
 
 ISR(TIMER0_COMPA_vect){
 	// Actualiza Ciclo util
-	OCR0B = 100 - dutyCycle;
+	OCR0B = dutyCycle;
 }
 
 ISR(ADC_vect){
@@ -214,8 +215,7 @@ void initTimer0(){
 	TCCR0A |= ((1 << WGM01) | (1 << WGM00));
 	TCCR0B |= (1 << WGM02);
 
-	// Modo PWM no invertido
-	//TCCR0A |= (1 << COM0B1);                    // (El pin OC0B se borra cuando TCNT0 iguala a OCR0A y se setea cuando iguala a BOTTOM)
+	// Modo PWM invertido
 	TCCR0A |= (1 << COM0B1) | (1 << COM0B0);
 
 	OCR0A = T_PWM;                              // Seleccion de tope para frecuencia de 2kHz
@@ -259,8 +259,8 @@ void configTV(int op){
 	// Si op = 1 --> Actualiza T1 y V1
 	// Si op = 0 --> Actualiza T2 y V2
 	if(op){
-		T1 = (int)(10 + (RV1 * 10/1023));        // De 10" a 20"
-		V1 = (int)(40 + (RV2 * 55/1023));        // De 40% a 95%
+		T1 = (int)(10 + (RV1 * 0.01));         // De 10" a 20"   /  0.01 = 10/1023
+		V1 = (int)(40 + (RV2 * 0.05));         // De 40% a 95%    /  0.05 = 55/1023
 
 		if(interface!=1){
 			update=1;
@@ -268,8 +268,8 @@ void configTV(int op){
 		}
 	}
 	else{
-		T2 = (int)(10 + (RV1 * 10/1023));        // De 10" a 20"
-		V2 = (int)(40 + (RV2 * 55/1023));        // De 40% a 95%
+		T2 = (int)(10 + (RV1 * 0.01));         // De 10" a 20"   /  0.01 = 10/1023
+		V2 = (int)(40 + (RV2 * 0.05));         // De 40% a 95%    /  0.05 = 55/1023
 
 		if(interface!=2){
 			update=1;
@@ -280,31 +280,29 @@ void configTV(int op){
 
 // Modo normal (funcionamiento del motor)
 void normal(){
-	ADCSRA &= ~(1 << ADIE);                         // Deshabilita las interrupciones del ADC
+	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC
 
-	if(FlagP1){                                     // ENCENDER PWM
-		if(motorOn){                                // Ya estaba encendido -> debe mantener el funcionamiento alternante
-												    // Identifico etapa y actualizo Ciclo Util (si es necesario)
-			if((CLK < 100*T1) && (dutyCycle != V1)){    // Etapa 1 y es necesario actualizar Ciclo Util
-				dutyCycle = V1;                     // Actualiza Ciclo Util con V1
+	if(FlagP1){                                 // ENCENDER PWM
+		if(motorOn){                            // Ya estaba encendido -> debe mantener el funcionamiento alternante
+										        // Identifico etapa y actualizo Ciclo Util (si es necesario)
+			if(CLK < 100*T1){                   // Etapa 1 y es necesario actualizar Ciclo Util
+				dutyCycle = calDutyCycle(V1);   // Actualiza Ciclo Util con V1
 			}
-			else{                                   // Etapa 2
-				if(dutyCycle != V2){			    // Es necesario actualizar Ciclo Util
-					dutyCycle = V2;                 // Actualiza Ciclo Util con V2
-				}
+			else{                               // Etapa 2
+				dutyCycle = calDutyCycle(V2);   // Actualiza Ciclo Util con V2
 			}
 
-			if(CLK > 100 * (T1 + T2)){             	// Si el clock supera a 100*(T1+T2), se reinicia
+			if(CLK > 100 * (T1 + T2)){          // Si el clock supera a 100*(T1+T2), se reinicia
 				CLK = 0;
 			}
 		}
-		else{                                      // No estaba encendido -> Asignar Ciclo Util y Encender
-			CLK = 0;                               // Reinicio el clock
-			dutyCycle = V1;                        // Asigna Ciclo Util con V1
-			turnOnPWM();                           // Enciende PWM
+		else{                                   // No estaba encendido -> Asignar Ciclo Util y Encender
+			CLK = 0;                            // Reinicio el clock
+			dutyCycle = calDutyCycle(V1);       // Asigna Ciclo Util con V1
+			turnOnPWM();                        // Enciende PWM
 		}
 	}
-	else{                                          // APAGAR PWM
+	else{                                       // APAGAR PWM
 		turnOffPWM();
 	}
 
@@ -316,6 +314,7 @@ void normal(){
 
 // Enciende el temporizador Timer0 (Fast PWM)
 void turnOnPWM(){
+	TCCR0A |= (1 << COM0B1) | (1 << COM0B0);
 	// Seleccion de la señal del reloj (N=64)
 	TCCR0B |= ((1 << CS01) | (1 << CS00));
 	motorOn = 1;
@@ -323,6 +322,7 @@ void turnOnPWM(){
 
 // Detiene el temporizador Timer0 (Fast PWM)
 void turnOffPWM(){
+	TCCR0A &= ~((1 << COM0B1) | (1 << COM0B0));
 	// Prescaler = 0
 	TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));
 	motorOn = 0;
@@ -361,12 +361,10 @@ void lcd(){
 
 // Mostrar interface Normal en LCD
 void interfaceNormal(){
-	// sprintf(buffer, "T1: %.0fs V1: %.0f%%", T1, V1);
 	sprintf(buffer, "T1: %is V1: %i%%", T1, V1);
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	//sprintf(buffer, "T2: %.0fs V2: %.0f%%", T2, V2);
 	sprintf(buffer, "T2: %is V2: %i%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
@@ -404,6 +402,14 @@ void ledIndicateP1(){
 		PORTA |= (1 << LED_R);         // Enciende LED rojo
 		PORTA &= ~(1 << LED_G);        // Apaga LED verde
 	}
+}
+
+// Calculo del ciclo util
+int calDutyCycle(int V){
+	// Calculo a realizar: (100 - V) * (125/100)
+	// (100 - V) -> porque V va de 40 a 95, y el PWM trabaja en modo invertido
+	// (125 / 100) -> 125 ciclos del PWM representan el 100% del ciclo util
+	return((int)(125 - 1,25*V));
 }
 
 /*
