@@ -58,7 +58,7 @@ int T1=10;                                          // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
 int T2=10;                                          // Tiempo etapa 2
 int V2=40;                                          // Velocidad etapa 2
-char buffer[16];                                    // Para cargar en lcd
+char buffer[8];                                     // Para cargar en lcd
 int interface;                                      // 0 (normal), 1 (config1), 2 (config2)
 int update;                                         // indica si es necesario actualizar el lcd
 
@@ -175,7 +175,7 @@ void boot(){
 	Lcd4_Init();
 	Lcd4_Clear();
 
-	sprintf(buffer, "INICIANDO...");
+	sprintf(buffer, "Init...");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
@@ -373,22 +373,22 @@ void interfaceNormal(){
 
 // Mostrar interface configuracion etapa 1
 void interfaceConfig1(){
-	sprintf(buffer, "CONFIG. ETAPA1:");
+	sprintf(buffer, "CONFIG1");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T1: %is V1: %i%%", T1, V1);
+	sprintf(buffer, "%is %i%%", T1, V1);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
 }
 
 // Mostrar interface configuracion etapa 2
 void interfaceConfig2(){
-	sprintf(buffer, "CONFIG. ETAPA2:");
+	sprintf(buffer, "CONFIG2:");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T2: %is V2: %i%%", T2, V2);
+	sprintf(buffer, "%is %i%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
 }
@@ -410,11 +410,11 @@ int calDutyCycle(int V){
 	// Calculo a realizar: (100 - V) * (125/100)
 	// (100 - V) -> porque V va de 40 a 95, y el PWM trabaja en modo invertido
 	// (125 / 100) -> 125 ciclos del PWM representan el 100% del ciclo util
-	return((int)(125 - 1,25*V));
+	return((int)(125 - 1.25*V));
 }
 
 /*
-Problemas a solucionar:
+Cuestiones a solucionar:
     * Implementar de manera más elegante las interfaces
 	* Cambiar la temporizacion del clock (10 ms genera un precision innecesaria)
 */
