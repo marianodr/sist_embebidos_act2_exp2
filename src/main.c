@@ -239,7 +239,7 @@ void initADConverter(){
 	// Habilita interrupcion por conversion (ADIE = 1) y prescaler en 128
 	ADCSRA |= ((1 << ADIE) | (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2));
 
-	// Habilita ADC (ADEN = 1), i
+	// Habilita ADC (ADEN = 1)
 	ADCSRA |= (1 << ADEN);
 }
 
@@ -247,7 +247,7 @@ void initADConverter(){
 void config(){
 	turnOffPWM();                               // APAGAR PWM
 
-	ADCSRA |= (1 << ADIE);                      // Habilita las interrupciones del ADC
+	ADCSRA |= (1 << ADSC);                    // Inicia la conversion
 
 	configTV(FlagP3);                           // Configura T1/V1 o T2/V2
 }
@@ -260,28 +260,12 @@ void configTV(int op){
 		T1 = (int)(10 + (RV1 * 0.01));         // De 10" a 20"   /  0.01 = 10/1023
 		V1 = (int)(40 + (RV2 * 0.05));         // De 40% a 95%    /  0.05 = 55/1023
 
-		/*if((lastT1!=T1)||(lastV1!=V1)){
-			update = 1;
-		}
-
-		if(interface!=1){
-			update=1;
-			interface=1;
-		}*/
 		interface=1;
 	}
 	else{
 		T2 = (int)(10 + (RV1 * 0.01));         // De 10" a 20"   /  0.01 = 10/1023
 		V2 = (int)(40 + (RV2 * 0.05));         // De 40% a 95%    /  0.05 = 55/1023
 
-		/*if((lastT2!=T2)||(lastV2!=V2)){
-			update = 1;
-		}
-
-		if(interface!=2){
-			update=1;
-			interface=2;
-		}*/
 		interface=2;
 	}
 	update=1;
@@ -289,7 +273,6 @@ void configTV(int op){
 
 // Modo normal (funcionamiento del motor)
 void normal(){
-	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC
 
 	if(FlagP1){                                 // ENCENDER PWM
 		if(motorOn){                            // Ya estaba encendido -> debe mantener el funcionamiento alternante
