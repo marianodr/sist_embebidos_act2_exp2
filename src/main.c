@@ -51,24 +51,26 @@ volatile int FlagP2 = 1; 							// FlagP2 = 1 -> Modo Configuracion
 volatile int FlagP3 = 1;						    // FlagP3 = 1 -> Configuracion T1V1
 volatile int CLK = 0;			                    // Variable contador para el Timer 2
 volatile int RV1=512;                               // Lectura del potenciometro RV1 (Tiempo)       (0 a 1023)
-volatile int RV2=512;                               // Lectura del potenciometro RV2 (Velocidad)    (0 a 1023)
+volatile int RV2=1023;                              // Lectura del potenciometro RV2 (Velocidad)    (0 a 1023)
 volatile int motorOn = 0;                           // Estado del motor
 volatile int dutyCycle;                             // Ciclo util de la senal PWM
 int T1=10;                                          // Tiempo etapa 1
 int V1=95;                                          // Velocidad etapa 1
 int T2=10;                                          // Tiempo etapa 2
 int V2=40;                                          // Velocidad etapa 2
-char buffer[16];                                    // Para cargar en lcd
+char buffer[8];                                     // Para cargar en lcd
 int interface;                                      // 0 (normal), 1 (config1), 2 (config2)
 int update;                                         // indica si es necesario actualizar el lcd
+
+int lastT1=10, lastT2=10, lastV1=95, lastV2=40;
 
 // Declararacion de funciones
 // -------------------------------------------------------------------
 void initPorts();
 void boot();
 void initExternalInterrupts();
-void initTimer2();               // Inicializacion del Timer2 como temporizador (10ms)
 void initTimer0();               // Inicializacion del Timer0 como Fast PWM
+void initTimer1();               // Inicializacion del Timer1 como clock (100ms)
 void initADConverter();
 void config();
 void configTV(int op);
@@ -89,10 +91,9 @@ int main(void){
 	initPorts();
 	boot();
 	initExternalInterrupts();
-	initTimer2();
+	initTimer1();
 	initTimer0();
 	initADConverter();
-	// Lcd4_Init();				// Inicializa el LCD (siempre debe estar antes de escribir el LCD)
 	Lcd4_Clear();				// Borra el display.
 	sei();						// Habilita interrupciones.
 
@@ -133,13 +134,13 @@ ISR(INT2_vect){
 	}
 }
 
-ISR(TIMER2_COMPA_vect){
-    CLK++;					       // Incrementa contador cada 10ms
-}
-
 ISR(TIMER0_COMPA_vect){
 	// Actualiza Ciclo util
 	OCR0B = dutyCycle;
+}
+
+ISR(TIMER1_COMPA_vect) {
+    CLK++;
 }
 
 ISR(ADC_vect){
@@ -175,7 +176,7 @@ void boot(){
 	Lcd4_Init();
 	Lcd4_Clear();
 
-	sprintf(buffer, "INICIANDO...");
+	sprintf(buffer, "Init...");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
@@ -189,21 +190,10 @@ void boot(){
 
 // Inicializacion de interrupciones externas
 void initExternalInterrupts(){
-	// Habilitacion de interrupciones externas:
 	EICRA |= (1 << ISC01) | (1 << ISC11) | (1 << ISC21);	// Configura INT0, INT1 e INT2 sensible a flanco desc.
 	EIMSK |= (1 << INT0) | (1 << INT1) | (1 << INT2);	    // Habilita INT0, INT1 e INT2
 	EIFR = 0x00;
 	//sei();							                    // Habilita las interrup. globalmente.
-}
-
-// Inicializacion del Timer2 como temporizador (10ms)
-void initTimer2(){
-	TCCR2A |= (1 << WGM01);	                  // Modo CTC.
-	TCCR2B |= ((1 << CS02) | (1 << CS00));    // Prescaler N = 1024.
-	TIMSK2 = (1 << OCIE2A);                   // 0x02; Habilita interrupcion por igualacion.
-	OCR2A = 155;				              // Carga el valor de TOPE (155).
-
-	TIFR2 = 0x00;                             // Borra flags de interrupciones del Timer 2.
 }
 
 // Inicializacion del Timer0 como Fast PWM
@@ -226,6 +216,14 @@ void initTimer0(){
 	TIFR0 = 0x00;                               // Borra flags de interrupciones del Timer 0.
 }
 
+// Inicializacion del Timer1 como temporizador (100ms)
+void initTimer1(){
+	TCCR1B |= (1 << CS11) | (1 << CS10);   // Configura prescaler de 256
+	TCCR1B |= (1 << WGM12);                // Modo CTC
+	OCR1A = 24999;                         // Valor de comparación para 100
+	TIMSK1 |= (1 << OCIE1A);               // Habilita la interrupción por comparacion con OCR1A
+}
+
 // Configuracion del conversor Analogico-Digital
 void initADConverter(){
 	// Desconecta la parte digital del pin ADC0/PF0 y ADC1/PF1.
@@ -241,7 +239,7 @@ void initADConverter(){
 	// Habilita interrupcion por conversion (ADIE = 1) y prescaler en 128
 	ADCSRA |= ((1 << ADIE) | (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2));
 
-	// Habilita ADC (ADEN = 1), i
+	// Habilita ADC (ADEN = 1)
 	ADCSRA |= (1 << ADEN);
 }
 
@@ -249,7 +247,7 @@ void initADConverter(){
 void config(){
 	turnOffPWM();                               // APAGAR PWM
 
-	ADCSRA |= (1 << ADIE);                      // Habilita las interrupciones del ADC
+	ADCSRA |= (1 << ADSC);                    // Inicia la conversion
 
 	configTV(FlagP3);                           // Configura T1/V1 o T2/V2
 }
@@ -262,37 +260,31 @@ void configTV(int op){
 		T1 = (int)(10 + (RV1 * 0.01));         // De 10" a 20"   /  0.01 = 10/1023
 		V1 = (int)(40 + (RV2 * 0.05));         // De 40% a 95%    /  0.05 = 55/1023
 
-		if(interface!=1){
-			update=1;
-			interface=1;
-		}
+		interface=1;
 	}
 	else{
 		T2 = (int)(10 + (RV1 * 0.01));         // De 10" a 20"   /  0.01 = 10/1023
 		V2 = (int)(40 + (RV2 * 0.05));         // De 40% a 95%    /  0.05 = 55/1023
 
-		if(interface!=2){
-			update=1;
-			interface=2;
-		}
+		interface=2;
 	}
+	update=1;
 }
 
 // Modo normal (funcionamiento del motor)
 void normal(){
-	ADCSRA &= ~(1 << ADIE);                     // Deshabilita las interrupciones del ADC
 
 	if(FlagP1){                                 // ENCENDER PWM
 		if(motorOn){                            // Ya estaba encendido -> debe mantener el funcionamiento alternante
 										        // Identifico etapa y actualizo Ciclo Util (si es necesario)
-			if(CLK < 100*T1){                   // Etapa 1 y es necesario actualizar Ciclo Util
+			if(CLK < 10*T1){                   // Etapa 1 y es necesario actualizar Ciclo Util
 				dutyCycle = calDutyCycle(V1);   // Actualiza Ciclo Util con V1
 			}
 			else{                               // Etapa 2
 				dutyCycle = calDutyCycle(V2);   // Actualiza Ciclo Util con V2
 			}
 
-			if(CLK > 100 * (T1 + T2)){          // Si el clock supera a 100*(T1+T2), se reinicia
+			if(CLK > 10 * (T1 + T2)){          // Si el clock supera a 100*(T1+T2), se reinicia
 				CLK = 0;
 			}
 		}
@@ -362,35 +354,43 @@ void lcd(){
 
 // Mostrar interface Normal en LCD
 void interfaceNormal(){
-	sprintf(buffer, "T1: %is V1: %i%%", T1, V1);
+	sprintf(buffer, "%is %i%%", T1, V1);
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T2: %is V2: %i%%", T2, V2);
+	sprintf(buffer, "%is %i%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
 }
 
 // Mostrar interface configuracion etapa 1
 void interfaceConfig1(){
-	sprintf(buffer, "CONFIG. ETAPA1:");
+	sprintf(buffer, "CONFIG1");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T1: %is V1: %i%%", T1, V1);
+	sprintf(buffer, "%is %i%%", T1, V1);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
+
+	lastT1 = T1;
+	lastV1 = V1;
+	_delay_ms(300);
 }
 
 // Mostrar interface configuracion etapa 2
 void interfaceConfig2(){
-	sprintf(buffer, "CONFIG. ETAPA2:");
+	sprintf(buffer, "CONFIG2");
 	Lcd4_Set_Cursor(1,0);										// Posiciona cursor en fila 1, columna 0
 	Lcd4_Write_String(buffer);									// Escribe string
 
-	sprintf(buffer, "T2: %is V2: %i%%", T2, V2);
+	sprintf(buffer, "%is %i%%", T2, V2);
 	Lcd4_Set_Cursor(2,0);										// Posiciona cursor en fila 2, columna 0
 	Lcd4_Write_String(buffer);
+
+	lastT2 = T2;
+	lastV2 = V2;
+	_delay_ms(300);
 }
 
 // Independientemente del modo, indica la seleccion del pulsador P1 (encender / apagar motor)
@@ -410,11 +410,11 @@ int calDutyCycle(int V){
 	// Calculo a realizar: (100 - V) * (125/100)
 	// (100 - V) -> porque V va de 40 a 95, y el PWM trabaja en modo invertido
 	// (125 / 100) -> 125 ciclos del PWM representan el 100% del ciclo util
-	return((int)(125 - 1,25*V));
+	return((int)(125 - 1.25*V));
 }
 
 /*
-Problemas a solucionar:
+Cuestiones a solucionar:
     * Implementar de manera más elegante las interfaces
 	* Cambiar la temporizacion del clock (10 ms genera un precision innecesaria)
 */
